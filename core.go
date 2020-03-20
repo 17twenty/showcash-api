@@ -1,59 +1,25 @@
 package showcash
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-
-	"github.com/gofrs/uuid"
-
-	jwt "github.com/dgrijalva/jwt-go"
 )
 
 type ShowcashCore struct {
-	refreshStrategy RefreshStrategy
 }
 
 func New() *ShowcashCore {
-	return &ShowcashCore{
-		refreshStrategy: DefaultRefreshStrategy(),
-	}
-}
-
-var indexFile = "../showcash/dist/index.html"
-
-func handlerSPA(w http.ResponseWriter, r *http.Request) {
-	if _, err := os.Stat(indexFile); err != nil {
-		log.Println("Error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	http.ServeFile(w, r, indexFile)
-}
-
-type RefreshStrategy func(cookie *AuthCookie) (*http.Cookie, error)
-
-func requestWithUserSession(req *http.Request, userSession *AuthCookie) *http.Request {
-	return req.WithContext(context.WithValue(req.Context(), struct{}{}, *userSession))
-}
-
-func Validate(token string, refreshResultHandler func(*AuthCookie) (*AuthCookie, error)) (*AuthCookie, error) {
-	userSession := &AuthCookie{}
-	err := ParseTokenWithDefaultSigningKey(token, userSession)
-	if err != nil {
-		if ve, ok := err.(*jwt.ValidationError); ok && ve.Errors&(jwt.ValidationErrorExpired) != 0 && validForRefresh(userSession) {
-			return refreshResultHandler(userSession)
-		}
-		return nil, err
-	}
-	return userSession, nil
+	return &ShowcashCore{}
 }
 
 func createAuthTokenCookie(token string) *http.Cookie {
@@ -65,76 +31,10 @@ func createAuthTokenCookie(token string) *http.Cookie {
 	}
 }
 
-func SignedUserToken(email string, userID uuid.UUID, userStatus UserStatus) (string, error) {
-	rightNow := time.Now().UTC()
-	return SignClaimsWithDefaultSigningKey(AuthCookie{
-		Email:      email,
-		UserID:     userID,
-		UserStatus: userStatus,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: rightNow.Add(15 * time.Minute).Unix(),
-			IssuedAt:  rightNow.Unix(),
-		},
-	})
-}
-
-func DefaultRefreshStrategy() RefreshStrategy {
-	return func(userSession *AuthCookie) (*http.Cookie, error) {
-		// user, err := dao.FindUserByID(userSession.UserID)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// if user.UserStatus == UserApproved {
-		token, err := SignedUserToken("nick@showcash.io", uuid.Nil, UserApproved)
-		if err != nil {
-			return nil, err
-		}
-		return createAuthTokenCookie(token), nil
-		// }
-		// return nil, errNotAuthorized
-	}
-}
-
 func jsonMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		next.ServeHTTP(w, r)
-	})
-}
-
-func (c *ShowcashCore) apiContextMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(wr http.ResponseWriter, req *http.Request) {
-		authorizationHeader := req.Header.Get("authorization")
-		log.Println("Here")
-		if authorizationHeader != "" {
-			bearerToken := strings.Split(authorizationHeader, " ")
-			if len(bearerToken) == 2 {
-				log.Println("1")
-				if userSession, err := validateAndRefresh(req, wr, c.refreshStrategy); err == nil {
-					next.ServeHTTP(wr, requestWithUserSession(req, userSession))
-					return
-				} else {
-					log.Println("Got error:", err)
-				}
-			}
-		}
-		next.ServeHTTP(wr, req)
-	})
-}
-
-func validateAndRefresh(req *http.Request, wr http.ResponseWriter, refreshStrategy RefreshStrategy) (*AuthCookie, error) {
-	cookie, err := req.Cookie("jwt-token")
-	if err != nil {
-		return nil, err
-	}
-	return Validate(cookie.Value, func(userSession *AuthCookie) (*AuthCookie, error) {
-		refreshedCookie, err := refreshStrategy(userSession)
-		if err != nil {
-			http.SetCookie(wr, expiredAuthCookie())
-			return nil, err
-		}
-		http.SetCookie(wr, refreshedCookie)
-		return userSession, nil
 	})
 }
 
@@ -145,53 +45,82 @@ func (c *ShowcashCore) Start() {
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Couldn't be fucked with the static magic
-	staticCSSRouter := r.PathPrefix("/css")
-	staticJSRouter := r.PathPrefix("/js")
-	staticImgRouter := r.PathPrefix("/img")
-	staticCSSRouter.Handler(http.StripPrefix("/css", http.FileServer(http.Dir("../showcash/dist/css"))))
-	staticJSRouter.Handler(http.StripPrefix("/js", http.FileServer(http.Dir("../showcash/dist/js"))))
-	staticImgRouter.Handler(http.StripPrefix("/img", http.FileServer(http.Dir("../showcash/dist/img"))))
-
 	// API Endpoints
 
 	// External webhook and form handler
 	apiRouter := r.PathPrefix("/api/").Subrouter()
 	apiRouter.HandleFunc("/me", c.apiMethodTestMe).Methods(http.MethodOptions, http.MethodGet, http.MethodPut)
 	apiRouter.HandleFunc("/login", c.apiLogin).Methods(http.MethodGet)
-	apiRouter.HandleFunc("/me", corsNop).Methods(http.MethodOptions)
 
 	apiRouter.Use(jsonMiddleware, handlers.CORS(
 		handlers.AllowedHeaders([]string{"X-Requested-With", "Authorization", "Access-Control-Allow-Methods", "Access-Control-Allow-Origin", "Origin", "Accept", "Content-Type"}),
 		handlers.AllowedOrigins([]string{"http://localhost:8080", "http://localhost:8081", "http://localhost:8082", "https://api.showcash.io", "https://showcash.io"}),
 		handlers.AllowCredentials()),
-		c.apiContextMiddleware)
+	)
 
-	r.NotFoundHandler = r.NewRoute().HandlerFunc(handlerSPA).GetHandler()
 	http.Handle("/", r)
 	log.Println("Doing it....")
 	http.ListenAndServe(":8080", nil)
 }
 
 func (c *ShowcashCore) apiMethodTestMe(wr http.ResponseWriter, req *http.Request) {
-	token, ok := getAuthorisedUserToken(req)
-	log.Println("token:", token)
-	if !ok {
-		JSONRespondWith(wr, apiUnauthorizedError)
-		return
+	log.Println("Got data")
+
+	req.ParseMultipartForm(32 << 20) // limit your max input length!
+	var buf bytes.Buffer
+	// in your case file would be fileupload
+	file, header, err := req.FormFile("file")
+	if err != nil {
+		panic(err)
 	}
-	log.Println("Hit", token)
+	defer file.Close()
+	name := strings.Split(header.Filename, ".")
+	fmt.Printf("File name %s\n", name[0])
+	// Copy the file data to my buffer
+	io.Copy(&buf, file)
+	// do something with the contents...
+	// I normally have a struct defined and unmarshal into a struct, but this will
+	// work as an example
+	contents := buf.String()
+	fmt.Println(contents)
+	// I reset the buffer in case I want to use it again
+	// reduces memory allocations in more intense projects
+	buf.Reset()
+	// do something else
+	// etc write header
+	return
+
+	// 	dec, err := base64.StdEncoding.DecodeString(b64)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+
+	// 	f, err := os.Create("myfilename")
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	defer f.Close()
+
+	// 	if _, err := f.Write(dec); err != nil {
+	// 		panic(err)
+	// 	}
+	// 	if err := f.Sync(); err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 }
 
 func (c *ShowcashCore) apiLogin(wr http.ResponseWriter, req *http.Request) {
 	// user, err := c.dao.FindUserByEmail(req.Form.Get("email"))
 	// if err == nil && user != nil && quicka.HashMatchesPlaintext(user.PasswordHash, req.Form.Get("password")) && (user.UserStatus == quicka.UserPendingKYCReview || user.UserStatus == quicka.UserApproved) {
-	token, err := SignedUserToken("nick@showcash.io", uuid.Nil, UserApproved)
-	if err != nil {
-		JSONRespondWith(wr, apiServerError)
-		return
-	}
-	http.SetCookie(wr, createAuthTokenCookie(token))
+
+	log.Println("This is shit")
+	// token, err := SignedUserToken("nick@showcash.io", uuid.Nil, UserApproved)
+	// if err != nil {
+	// 	JSONRespondWith(wr, apiServerError)
+	// 	return
+	// }
+	// http.SetCookie(wr, createAuthTokenCookie(token))
 	// }
 }
 
