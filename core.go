@@ -1,14 +1,12 @@
 package showcash
 
 import (
-	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"strings"
+	"os"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -49,7 +47,7 @@ func (c *ShowcashCore) Start() {
 
 	// External webhook and form handler
 	apiRouter := r.PathPrefix("/api/").Subrouter()
-	apiRouter.HandleFunc("/me", c.apiMethodTestMe).Methods(http.MethodOptions, http.MethodGet, http.MethodPut)
+	apiRouter.HandleFunc("/me", c.apiMethodTestMe).Methods(http.MethodOptions, http.MethodGet, http.MethodPost)
 	apiRouter.HandleFunc("/login", c.apiLogin).Methods(http.MethodGet)
 
 	apiRouter.Use(jsonMiddleware, handlers.CORS(
@@ -59,55 +57,38 @@ func (c *ShowcashCore) Start() {
 	)
 
 	http.Handle("/", r)
-	log.Println("Doing it....")
+	log.Println("Showcashing it on port 8080...")
 	http.ListenAndServe(":8080", nil)
 }
 
 func (c *ShowcashCore) apiMethodTestMe(wr http.ResponseWriter, req *http.Request) {
 	log.Println("Got data")
+	payload := struct {
+		File string `json:"file,omitempty"`
+	}{}
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		log.Println("Post external invoice API: Unable to decode JSON request", err)
+		return
+	}
 
-	req.ParseMultipartForm(32 << 20) // limit your max input length!
-	var buf bytes.Buffer
-	// in your case file would be fileupload
-	file, header, err := req.FormFile("file")
+	dec, err := base64.StdEncoding.DecodeString(payload.File)
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
-	name := strings.Split(header.Filename, ".")
-	fmt.Printf("File name %s\n", name[0])
-	// Copy the file data to my buffer
-	io.Copy(&buf, file)
-	// do something with the contents...
-	// I normally have a struct defined and unmarshal into a struct, but this will
-	// work as an example
-	contents := buf.String()
-	fmt.Println(contents)
-	// I reset the buffer in case I want to use it again
-	// reduces memory allocations in more intense projects
-	buf.Reset()
-	// do something else
-	// etc write header
-	return
 
-	// 	dec, err := base64.StdEncoding.DecodeString(b64)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
+	f, err := os.Create("myfilename")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
 
-	// 	f, err := os.Create("myfilename")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	defer f.Close()
+	if _, err := f.Write(dec); err != nil {
+		panic(err)
+	}
+	if err := f.Sync(); err != nil {
+		panic(err)
+	}
 
-	// 	if _, err := f.Write(dec); err != nil {
-	// 		panic(err)
-	// 	}
-	// 	if err := f.Sync(); err != nil {
-	// 		panic(err)
-	// 	}
-	// }
 }
 
 func (c *ShowcashCore) apiLogin(wr http.ResponseWriter, req *http.Request) {
