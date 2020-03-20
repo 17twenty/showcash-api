@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
@@ -50,10 +51,20 @@ func (c *ShowcashCore) Start() {
 
 	// API endpoints
 	apiRouter := r.PathPrefix("/api/").Subrouter()
-	apiRouter.HandleFunc("/me", c.apiMethodTestMe).Methods(http.MethodOptions, http.MethodGet, http.MethodPost)
-	apiRouter.HandleFunc("/login", c.apiLogin).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/me", c.apiPostCash).Methods(http.MethodOptions, http.MethodPost)
+	apiRouter.HandleFunc("/me/{slug}", c.apiPutCash).Methods(http.MethodOptions, http.MethodPut)
+	apiRouter.HandleFunc("/me/{slug}", c.apiGetCash).Methods(http.MethodOptions, http.MethodGet)
 
 	apiRouter.Use(jsonMiddleware, handlers.CORS(
+		handlers.AllowedMethods([]string{
+			http.MethodGet,
+			http.MethodHead,
+			http.MethodPost,
+			http.MethodPut,
+			http.MethodDelete,
+			http.MethodOptions,
+			http.MethodPatch,
+		}),
 		handlers.AllowedHeaders([]string{"X-Requested-With", "Authorization", "Access-Control-Allow-Methods", "Access-Control-Allow-Origin", "Origin", "Accept", "Content-Type"}),
 		handlers.AllowedOrigins([]string{"http://localhost:8080", "http://localhost:8081", "http://localhost:8082", "https://api.showcash.io", "https://showcash.io"}),
 		handlers.AllowCredentials()),
@@ -64,7 +75,62 @@ func (c *ShowcashCore) Start() {
 	http.ListenAndServe(":8080", nil)
 }
 
-func (c *ShowcashCore) apiMethodTestMe(wr http.ResponseWriter, req *http.Request) {
+// Item is the dope things
+type Item struct {
+	ID          int    `json:"id"`
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Link        string `json:"link,omitempty"`
+	Left        int    `json:"left,omitempty"`
+	Top         int    `json:"top,omitempty"`
+}
+
+// ShowCash is the type used for wrapping cool shit
+type ShowCash struct {
+	ID       uuid.UUID `json:"id,omitempty"`
+	Title    string    `json:"title,omitempty"`
+	ImageURI string    `json:"imageURI,omitempty"`
+	Date     time.Time `json:"date,omitempty"`
+	ItemList []Item    `json:"itemList,omitempty"`
+}
+
+func (c *ShowcashCore) apiPutCash(wr http.ResponseWriter, req *http.Request) {
+	// TODO: Use the slug!
+	slug, _ := mux.Vars(req)["guid"]
+	log.Println("Requested", slug)
+
+	payload := ShowCash{}
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		log.Println("Post external invoice API: Unable to decode JSON request", err)
+		return
+	}
+
+	log.Println("Got:", payload)
+}
+
+func (c *ShowcashCore) apiGetCash(wr http.ResponseWriter, req *http.Request) {
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(ShowCash{
+		ID:       uuid.FromStringOrNil("92201c6c-0929-42e4-ae30-58436ba80419"),
+		Title:    "The baddest tequila",
+		ImageURI: fmt.Sprintf("http://localhost:8080/static/%s", "Overview.png"),
+		Date:     time.Now(),
+		ItemList: []Item{
+			{
+				ID:          0,
+				Left:        80,
+				Top:         80,
+				Title:       "My Shit",
+				Description: "Boogie woogie",
+				Link:        "https://www.google.com",
+			},
+		},
+	}); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
+}
+
+func (c *ShowcashCore) apiPostCash(wr http.ResponseWriter, req *http.Request) {
 	log.Println("Got data")
 	payload := struct {
 		File     string `json:"file,omitempty"`
@@ -99,17 +165,15 @@ func (c *ShowcashCore) apiMethodTestMe(wr http.ResponseWriter, req *http.Request
 	}
 
 	wr.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(wr).Encode(struct {
-		ImageURI string `json:"filename,omitempty"`
-	}{
+	if err := json.NewEncoder(wr).Encode(ShowCash{
 		ImageURI: fmt.Sprintf("http://localhost:8080/static/%s", payload.Filename),
+		ID:       uuid.FromStringOrNil("92201c6c-0929-42e4-ae30-58436ba80419"), //(uuid.NewV4()),
 	}); err != nil {
 		log.Printf("Error Encoding JSON: %s", err)
 	}
 }
 
 func (c *ShowcashCore) apiLogin(wr http.ResponseWriter, req *http.Request) {
-
 	log.Println("called apiLogin")
 }
 
