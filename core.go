@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -43,9 +44,11 @@ func (c *ShowcashCore) Start() {
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// API Endpoints
+	// Static Endpoints
+	staticRouter := r.PathPrefix("/static/")
+	staticRouter.Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
 
-	// External webhook and form handler
+	// API endpoints
 	apiRouter := r.PathPrefix("/api/").Subrouter()
 	apiRouter.HandleFunc("/me", c.apiMethodTestMe).Methods(http.MethodOptions, http.MethodGet, http.MethodPost)
 	apiRouter.HandleFunc("/login", c.apiLogin).Methods(http.MethodGet)
@@ -64,45 +67,50 @@ func (c *ShowcashCore) Start() {
 func (c *ShowcashCore) apiMethodTestMe(wr http.ResponseWriter, req *http.Request) {
 	log.Println("Got data")
 	payload := struct {
-		File string `json:"file,omitempty"`
+		File     string `json:"file,omitempty"`
+		Filename string `json:"filename,omitempty"`
 	}{}
 	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 		log.Println("Post external invoice API: Unable to decode JSON request", err)
 		return
 	}
 
+	log.Println("Uploaded...", payload.Filename)
 	dec, err := base64.StdEncoding.DecodeString(payload.File)
 	if err != nil {
-		panic(err)
+		log.Println("WTF1", err)
+		return
 	}
 
-	f, err := os.Create("myfilename")
+	f, err := os.Create(fmt.Sprintf("../../static/%s", payload.Filename))
 	if err != nil {
-		panic(err)
+		log.Println("WTF2", err)
+		return
 	}
 	defer f.Close()
 
 	if _, err := f.Write(dec); err != nil {
-		panic(err)
+		log.Println("WTF3", err)
+		return
 	}
 	if err := f.Sync(); err != nil {
-		panic(err)
+		log.Println("WTF4", err)
+		return
 	}
 
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(struct {
+		ImageURI string `json:"filename,omitempty"`
+	}{
+		ImageURI: fmt.Sprintf("http://localhost:8080/static/%s", payload.Filename),
+	}); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
 }
 
 func (c *ShowcashCore) apiLogin(wr http.ResponseWriter, req *http.Request) {
-	// user, err := c.dao.FindUserByEmail(req.Form.Get("email"))
-	// if err == nil && user != nil && quicka.HashMatchesPlaintext(user.PasswordHash, req.Form.Get("password")) && (user.UserStatus == quicka.UserPendingKYCReview || user.UserStatus == quicka.UserApproved) {
 
-	log.Println("This is shit")
-	// token, err := SignedUserToken("nick@showcash.io", uuid.Nil, UserApproved)
-	// if err != nil {
-	// 	JSONRespondWith(wr, apiServerError)
-	// 	return
-	// }
-	// http.SetCookie(wr, createAuthTokenCookie(token))
-	// }
+	log.Println("called apiLogin")
 }
 
 // GetAuthorisedUserToken -
@@ -114,20 +122,6 @@ func getAuthorisedUserToken(req *http.Request) (AuthCookie, bool) {
 		return val, true
 	}
 	return val, false
-}
-
-func corsNop(wr http.ResponseWriter, req *http.Request) {
-	JSONRespondWith(wr, apiOK)
-}
-
-// JSONRespondWith - handles JSON response with Status code
-func JSONRespondWith(wr http.ResponseWriter, resp apiSimpleResponse) {
-	wr.Header().Set("Content-Type", "application/json")
-	wr.WriteHeader(resp.statusCode)
-	j := json.NewEncoder(wr)
-	if err := j.Encode(resp); err != nil {
-		log.Printf("Error Encoding JSON: %s", err)
-	}
 }
 
 func validForRefresh(userSession *AuthCookie) bool {
