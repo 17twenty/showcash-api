@@ -15,11 +15,18 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type ShowcashCore struct {
+// Core ...
+type Core struct {
+	dao   DAO
+	useS3 bool
 }
 
-func New() *ShowcashCore {
-	return &ShowcashCore{}
+// New ...
+func New(dao *DAO, useS3 bool) *Core {
+	return &Core{
+		*dao,
+		useS3,
+	}
 }
 
 func createAuthTokenCookie(token string) *http.Cookie {
@@ -38,7 +45,8 @@ func jsonMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (c *ShowcashCore) Start() {
+// Start ...
+func (c *Core) Start() {
 	r := mux.NewRouter()
 
 	// Setup Context
@@ -94,7 +102,7 @@ type ShowCash struct {
 	ItemList []Item    `json:"itemList,omitempty"`
 }
 
-func (c *ShowcashCore) apiPutCash(wr http.ResponseWriter, req *http.Request) {
+func (c *Core) apiPutCash(wr http.ResponseWriter, req *http.Request) {
 	// TODO: Use the slug!
 	slug, _ := mux.Vars(req)["guid"]
 	log.Println("Requested", slug)
@@ -108,7 +116,7 @@ func (c *ShowcashCore) apiPutCash(wr http.ResponseWriter, req *http.Request) {
 	log.Println("Got:", payload)
 }
 
-func (c *ShowcashCore) apiGetCash(wr http.ResponseWriter, req *http.Request) {
+func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 	wr.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(wr).Encode(ShowCash{
 		ID:       uuid.FromStringOrNil("92201c6c-0929-42e4-ae30-58436ba80419"),
@@ -130,7 +138,7 @@ func (c *ShowcashCore) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (c *ShowcashCore) apiPostCash(wr http.ResponseWriter, req *http.Request) {
+func (c *Core) apiPostCash(wr http.ResponseWriter, req *http.Request) {
 	log.Println("Got data")
 	payload := struct {
 		File     string `json:"file,omitempty"`
@@ -173,23 +181,8 @@ func (c *ShowcashCore) apiPostCash(wr http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (c *ShowcashCore) apiLogin(wr http.ResponseWriter, req *http.Request) {
+func (c *Core) apiLogin(wr http.ResponseWriter, req *http.Request) {
 	log.Println("called apiLogin")
-}
-
-// GetAuthorisedUserToken -
-func getAuthorisedUserToken(req *http.Request) (AuthCookie, bool) {
-	ctx := req.Context().Value(struct{}{})
-	val := AuthCookie{}
-	var ok bool
-	if val, ok = ctx.(AuthCookie); ok {
-		return val, true
-	}
-	return val, false
-}
-
-func validForRefresh(userSession *AuthCookie) bool {
-	return time.Now().Before(time.Unix(userSession.ExpiresAt, 0).Add(14 * 24 * time.Hour))
 }
 
 func expiredAuthCookie() *http.Cookie {
