@@ -49,7 +49,7 @@ func main() {
 		if err != nil {
 			log.Fatalln("Couldn't create database connection", err)
 		}
-		if err := m.Up(); !errors.Is(err, migrate.ErrNoChange) {
+		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			log.Fatalln("Couldn't Up()", err)
 		} else {
 			log.Println("Migration not required. All good.")
