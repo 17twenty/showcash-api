@@ -18,6 +18,5 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w -
 FROM scratch
 # Copy our static executable.
 COPY --from=builder /go/bin/showcash-api /go/bin/showcash-api
-EXPOSE 8080
 # Run the showcash-api binary.
 ENTRYPOINT ["/go/bin/showcash-api"]
