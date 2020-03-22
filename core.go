@@ -1,6 +1,7 @@
 package showcash
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -10,12 +11,18 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gofrs/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
+
+var awsSession *session.Session
 
 // Core ...
 type Core struct {
@@ -25,6 +32,14 @@ type Core struct {
 
 // New ...
 func New(dao *DAO, useS3 bool) *Core {
+	if useS3 {
+		var err error
+		if awsSession, err = session.NewSession(&aws.Config{
+			Region: aws.String("ap-southeast-2")},
+		); err != nil {
+			log.Panic("Couldn't create AWS session after requesting", err)
+		}
+	}
 	return &Core{
 		*dao,
 		useS3,
@@ -148,6 +163,7 @@ func (c *Core) apiPostCash(wr http.ResponseWriter, req *http.Request) {
 	}{}
 	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 		log.Println("apiPostCash Decode() Failed", err)
+		wr.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -155,28 +171,49 @@ func (c *Core) apiPostCash(wr http.ResponseWriter, req *http.Request) {
 	dec, err := base64.StdEncoding.DecodeString(payload.File)
 	if err != nil {
 		log.Println("DecodeString() Failed", err)
+		wr.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	var generatedImageURI string
 	if c.useS3 {
-		generatedImageURI = ""
+		suffix := filepath.Ext(payload.Filename)
+		fileName := fmt.Sprintf("%s%s", uuid.Must(uuid.NewV4()), suffix)
+		uploader := s3manager.NewUploader(awsSession)
+		fileType := http.DetectContentType(dec)
+
+		resp, err := uploader.Upload(&s3manager.UploadInput{
+			Bucket:      aws.String("showcash-uploads"),
+			Key:         aws.String(fileName),
+			Body:        bytes.NewReader(dec),
+			ContentType: aws.String(fileType),
+		})
+		if err != nil {
+			log.Println("s3 upload() Failed", err)
+			wr.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		generatedImageURI = resp.Location
+
 	} else {
 		generatedImageURI = fmt.Sprintf("http://localhost:8080/static/%s", payload.Filename)
 		// Put it local
 		f, err := os.Create(fmt.Sprintf("../../static/%s", payload.Filename))
 		if err != nil {
 			log.Println("Create() failed", err)
+			wr.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		defer f.Close()
 
 		if _, err := f.Write(dec); err != nil {
 			log.Println("Write() Failed", err)
+			wr.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if err := f.Sync(); err != nil {
 			log.Println("Sync() Failed", err)
+			wr.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	}

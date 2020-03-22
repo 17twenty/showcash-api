@@ -3,6 +3,7 @@ module github.com/17twenty/showcash-api
 go 1.13
 
 require (
+	github.com/aws/aws-sdk-go v1.17.7
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/golang-migrate/migrate/v4 v4.10.0
