@@ -197,9 +197,7 @@ func (d *DAO) increaseView(postID uuid.UUID, uniqueValue string) {
 			unique_value
 		) VALUES (
 			$1, $2
-		) ON CONFLICT (post_id, unique_value) DO
-		UPDATE SET 
-			viewed_at = NOW();`,
+		) ON CONFLICT (post_id, unique_value) DO NOTHING`,
 		postID, uniqueValue,
 	)
 }
