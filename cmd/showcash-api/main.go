@@ -19,7 +19,7 @@ import (
 func main() {
 	log.Println("Starting Showcash API")
 
-	log.SetFlags(log.Lshortfile | log.Ldate | log.Lmicroseconds)
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	isStrict12FA := flag.Bool("strict", false, "Calls os.Exit(1) if required ENV vars is not set")
 	flag.Parse()
 	config := loadConfig(isStrict12FA)
