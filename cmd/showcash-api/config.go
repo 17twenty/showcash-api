@@ -18,7 +18,7 @@ type config struct {
 func loadConfig(strict *bool) *config {
 	env.FatalOnMissingEnv = *strict
 	return &config{
-		UseS3: false,
+		UseS3: env.GetAsBool("USES3", false),
 		Database: databaseConfig{
 			User:     env.GetAsString("DB_USER", "local"),
 			Password: env.GetAsString("DB_PASSWORD", "asecurepassword"),
