@@ -2,6 +2,7 @@ package showcash
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -185,11 +186,54 @@ func (d *DAO) getPost(postID uuid.UUID) (Post, error) {
 		p.ItemList = items
 	}
 	return p, err
-
 }
 
-func (d *DAO) getLatestPosts() {
+// increaseView keys on the postID and the unique value to ensure we're not being
+// dickheads
+func (d *DAO) increaseView(postID uuid.UUID, uniqueValue string) {
+	_, _ = d.db.Exec(
+		`INSERT INTO showcash.views (
+			post_id,
+			unique_value
+		) VALUES (
+			$1, $2
+		) ON CONFLICT (post_id, unique_value) DO
+		UPDATE SET 
+			viewed_at = NOW();`,
+		postID, uniqueValue,
+	)
 }
 
-func (d *DAO) getPopularPosts() {
+func (d *DAO) getLatestPosts() []Post {
+	var posts []Post
+	err := d.db.Select(
+		&posts,
+		`SELECT p.imageuri,p.title FROM showcash.post AS p  
+		ORDER BY created_at DESC   
+		LIMIT 8`,
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Println("getMostViewedPosts() failed", err)
+	}
+
+	return posts
+}
+
+func (d *DAO) getMostViewedPosts() []Post {
+	var posts []Post
+	err := d.db.Select(
+		&posts,
+		`SELECT p.imageuri,p.title FROM showcash.post AS p JOIN (
+			SELECT post_id, COUNT(*) AS counted 
+			FROM showcash.views 
+			-- WHERE month = 'May'  -- or whatever is relevant
+			GROUP BY post_id 
+			ORDER BY counted DESC, post_id  -- to break ties in deterministic fashion 
+			LIMIT 8
+		) AS pop ON pop.post_id = p.id;`,
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Println("getMostViewedPosts() failed", err)
+	}
+	return posts
 }
