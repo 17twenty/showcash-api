@@ -2,6 +2,9 @@ package showcash
 
 import (
 	"net/http"
+	"time"
+
+	"github.com/gofrs/uuid"
 )
 
 var (
@@ -17,4 +20,23 @@ type apiSimpleResponse struct {
 	Message    string   `json:"message,omitempty"`
 	Messages   []string `json:"messages,omitempty"`
 	statusCode int
+}
+
+// Item is the dope things
+type Item struct {
+	ID          int    `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Link        string `json:"link"`
+	Left        int    `json:"left"`
+	Top         int    `json:"top"`
+}
+
+// Post is the type used for wrapping cool shit
+type Post struct {
+	ID       uuid.UUID `json:"id"`
+	Title    string    `json:"title"`
+	ImageURI string    `json:"imageuri"`
+	Date     time.Time `json:"date"`
+	ItemList []Item    `json:"itemList"`
 }

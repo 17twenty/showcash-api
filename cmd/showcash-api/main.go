@@ -1,13 +1,19 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/17twenty/showcash-api"
+
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/lib/pq" // this is for the DAO
 )
 
 func main() {
@@ -18,15 +24,36 @@ func main() {
 	flag.Parse()
 	config := loadConfig(isStrict12FA)
 
-	// Setup the database
-	m, err := migrate.New(
-		"file://db/migrations",
-		"postgres://postgres:postgres@localhost:5432/example?sslmode=disable")
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := m.Up(); err != nil {
-		log.Fatal(err)
+	// Get the execution directory of the binary
+	// Exexute migrations
+	{
+		ex, err := os.Executable()
+		if err != nil {
+			log.Fatalln("Can't find binary!", err)
+		}
+		exPath := filepath.Dir(ex)
+		migrationDir := fmt.Sprintf("file:///%s/migrations", exPath)
+		log.Println("Prepping migrations from:", migrationDir)
+
+		// Setup the database
+		m, err := migrate.New(
+			migrationDir,
+			fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+				config.Database.User,
+				config.Database.Password,
+				config.Database.Host,
+				config.Database.Port,
+				config.Database.Name,
+			),
+		)
+		if err != nil {
+			log.Fatalln("Couldn't create database connection", err)
+		}
+		if err := m.Up(); !errors.Is(err, migrate.ErrNoChange) {
+			log.Fatalln("Couldn't Up()", err)
+		} else {
+			log.Println("Migration not required. All good.")
+		}
 	}
 
 	dao, err := showcash.NewDAO(
