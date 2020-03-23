@@ -94,7 +94,7 @@ func (c *Core) Start() {
 			http.MethodPatch,
 		}),
 		handlers.AllowedHeaders([]string{"X-Requested-With", "Authorization", "Access-Control-Allow-Methods", "Access-Control-Allow-Origin", "Origin", "Accept", "Content-Type"}),
-		handlers.AllowedOrigins([]string{"http://localhost:8080", "http://localhost:8081", "http://localhost:8082", "https://api.showcash.io", "https://showcash.io"}),
+		handlers.AllowedOrigins([]string{"http://localhost:8080", "http://localhost:8081", "https://api.showcash.io", "https://showcash.io"}),
 		handlers.AllowCredentials()),
 	)
 
@@ -193,7 +193,8 @@ func (c *Core) apiPostCash(wr http.ResponseWriter, req *http.Request) {
 			wr.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		generatedImageURI = resp.Location
+		log.Println("Uploaded to:", resp.Location)
+		generatedImageURI = fmt.Sprintf("https://images.showcash.io/%s", fileName)
 
 	} else {
 		generatedImageURI = fmt.Sprintf("http://localhost:8080/static/%s", payload.Filename)
