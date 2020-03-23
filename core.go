@@ -79,6 +79,7 @@ func (c *Core) Start() {
 
 	// API endpoints
 	apiRouter := r.PathPrefix("/api/").Subrouter()
+	apiRouter.HandleFunc("/recent", c.apiGetMostRecent).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/me", c.apiPostCash).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/me/{guid}", c.apiPutCash).Methods(http.MethodOptions, http.MethodPut)
 	apiRouter.HandleFunc("/me/{guid}", c.apiGetCash).Methods(http.MethodOptions, http.MethodGet)
@@ -130,6 +131,18 @@ func (c *Core) apiPutCash(wr http.ResponseWriter, req *http.Request) {
 	if err := json.NewEncoder(wr).Encode(result); err != nil {
 		log.Printf("Error Encoding JSON: %s", err)
 	}
+}
+
+func (c *Core) apiGetMostRecent(wr http.ResponseWriter, req *http.Request) {
+	result := c.dao.getLatestPosts()
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(result); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
+}
+
+func (c *Core) apiGetMostViewed(wr http.ResponseWriter, req *http.Request) {
+
 }
 
 func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {

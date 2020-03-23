@@ -1,3 +1,5 @@
 /showcash-api
 /cmd/showcash-api/showcash-api
 /static/*
+/VERSION.txt
+/coverage.txt

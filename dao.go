@@ -206,7 +206,7 @@ func (d *DAO) getLatestPosts() []Post {
 	var posts []Post
 	err := d.db.Select(
 		&posts,
-		`SELECT p.imageuri,p.title FROM showcash.post AS p  
+		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p  
 		ORDER BY created_at DESC   
 		LIMIT 8`,
 	)

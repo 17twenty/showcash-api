@@ -12,4 +12,15 @@ go build ./cmd/...
 2020/03/20 13:57:11.459790 core.go:78: Uploaded... Overview.png
 ```
 
+## Deployment
+
+```bash
+aws --profile showcash \
+ecr get-login-password \
+  --region ap-southeast-2 | docker login \
+  --username AWS \
+  --password-stdin 386569642910.dkr.ecr.ap-southeast-2.amazonaws.com
+make publish
+```
+
 ## Issues
