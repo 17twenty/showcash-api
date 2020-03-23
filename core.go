@@ -100,7 +100,7 @@ func (c *Core) Start() {
 	)
 
 	http.Handle("/", r)
-	log.Println("Showcashing it on port 8080...")
+	log.Println("Showcashing on port 8080...")
 	http.ListenAndServe(":8080", nil)
 }
 

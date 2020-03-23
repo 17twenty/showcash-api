@@ -208,7 +208,7 @@ func (d *DAO) getLatestPosts() []Post {
 		&posts,
 		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p  
 		ORDER BY created_at DESC   
-		LIMIT 8`,
+		LIMIT 12`,
 	)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Println("getMostViewedPosts() failed", err)
@@ -227,7 +227,7 @@ func (d *DAO) getMostViewedPosts() []Post {
 			-- WHERE month = 'May'  -- or whatever is relevant
 			GROUP BY post_id 
 			ORDER BY counted DESC, post_id  -- to break ties in deterministic fashion 
-			LIMIT 8
+			LIMIT 12
 		) AS pop ON pop.post_id = p.id;`,
 	)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
