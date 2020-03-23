@@ -5,7 +5,7 @@ INTERNAL_BUILD_ID	:= $(shell [ -z "${TRAVIS_BUILD_NUMBER}" ] && echo "local" || 
 BINARY				:= $(shell cat app.json | sed -n 's/.*"name": "\(.*\)",/\1/p')
 REPO				:= $(shell cat app.json | sed -n 's/.*"repo": "\(.*\)",/\1/p')
 VERSION				:= $(shell echo "${MAJOR_VERSION}.${MINOR_VERSION}.${INTERNAL_BUILD_ID}-${SHA1}")
-BUILD_IMAGE			:= $(shell echo "golang:1.12.5")
+BUILD_IMAGE			:= $(shell echo "golang:1.13.9")
 PWD					:= $(shell pwd)
 
 .DEFAULT_GOAL := build
