@@ -1,0 +1,11 @@
+{
+  "cli": {
+    "name": "showcase-api",
+    "repo": "386569642910.dkr.ecr.ap-southeast-2.amazonaws.com/showcase-api",
+    "description": "Backend service for Showcase web app",
+    "version": {
+      "major": "0",
+      "minor": "0"
+    }
+  }
+}
