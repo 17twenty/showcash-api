@@ -79,8 +79,11 @@ func (c *Core) Start() {
 
 	// API endpoints
 	apiRouter := r.PathPrefix("/api/").Subrouter()
+	apiRouter.HandleFunc("/view", c.apiPostIncreaseView).Methods(http.MethodOptions, http.MethodPost)
+	apiRouter.HandleFunc("/mostviewed", c.apiGetMostViewed).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/recent", c.apiGetMostRecent).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/me", c.apiPostCash).Methods(http.MethodOptions, http.MethodPost)
+	apiRouter.HandleFunc("/remove/{guid}", c.apiDeletePost).Methods(http.MethodOptions, http.MethodDelete)
 	apiRouter.HandleFunc("/me/{guid}", c.apiPutCash).Methods(http.MethodOptions, http.MethodPut)
 	apiRouter.HandleFunc("/me/{guid}", c.apiGetCash).Methods(http.MethodOptions, http.MethodGet)
 
@@ -102,6 +105,40 @@ func (c *Core) Start() {
 	http.Handle("/", r)
 	log.Println("Showcashing on port 8080...")
 	http.ListenAndServe(":8080", nil)
+}
+
+func (c *Core) apiPostIncreaseView(wr http.ResponseWriter, req *http.Request) {
+	payload := struct {
+		ID         uuid.UUID `json:"id,omitempty"`
+		Identifier string    `json:"identifier,omitempty"`
+	}{}
+
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		log.Println("apiIncreaseView.Decode() failed", err)
+		wr.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	c.dao.increaseView(payload.ID, payload.Identifier)
+}
+func (c *Core) apiDeletePost(wr http.ResponseWriter, req *http.Request) {
+	slug, _ := mux.Vars(req)["guid"]
+	postID := uuid.FromStringOrNil(slug)
+
+	if postID == uuid.Nil {
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
+	c.dao.deletePost(postID)
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(struct {
+		Result string `json:"result,omitempty"`
+	}{
+		Result: "ok",
+	}); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
+
 }
 
 func (c *Core) apiPutCash(wr http.ResponseWriter, req *http.Request) {
@@ -142,7 +179,11 @@ func (c *Core) apiGetMostRecent(wr http.ResponseWriter, req *http.Request) {
 }
 
 func (c *Core) apiGetMostViewed(wr http.ResponseWriter, req *http.Request) {
-
+	result := c.dao.getMostViewedPosts()
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(result); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
 }
 
 func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {

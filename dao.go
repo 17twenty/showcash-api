@@ -188,6 +188,22 @@ func (d *DAO) getPost(postID uuid.UUID) (Post, error) {
 	return p, err
 }
 
+func (d *DAO) deletePost(postID uuid.UUID) {
+	_, err := d.db.Exec(
+		`DELETE FROM showcash.post WHERE id = $1`,
+		postID,
+	)
+	if err != nil {
+		log.Println("Fucked DELETE for post", postID, err)
+	}
+	if _, err := d.db.Exec(
+		`DELETE FROM showcash.item WHERE post_id = $1`,
+		postID,
+	); err != nil {
+		log.Println("Fucked DELETE for items", postID, err)
+	}
+}
+
 // increaseView keys on the postID and the unique value to ensure we're not being
 // dickheads
 func (d *DAO) increaseView(postID uuid.UUID, uniqueValue string) {
