@@ -237,7 +237,7 @@ func (d *DAO) getMostViewedPosts() []Post {
 	var posts []Post
 	err := d.db.Select(
 		&posts,
-		`SELECT p.imageuri,p.title FROM showcash.post AS p JOIN (
+		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p JOIN (
 			SELECT post_id, COUNT(*) AS counted 
 			FROM showcash.views 
 			-- WHERE month = 'May'  -- or whatever is relevant
