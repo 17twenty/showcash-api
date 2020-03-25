@@ -207,7 +207,7 @@ func (d *DAO) deletePost(postID uuid.UUID) {
 // increaseView keys on the postID and the unique value to ensure we're not being
 // dickheads
 func (d *DAO) increaseView(postID uuid.UUID, uniqueValue string) {
-	_, _ = d.db.Exec(
+	_, err := d.db.Exec(
 		`INSERT INTO showcash.views (
 			post_id,
 			unique_value
@@ -216,6 +216,9 @@ func (d *DAO) increaseView(postID uuid.UUID, uniqueValue string) {
 		) ON CONFLICT (post_id, unique_value) DO NOTHING`,
 		postID, uniqueValue,
 	)
+	if err != nil {
+		log.Println("increaseView() Failed")
+	}
 }
 
 func (d *DAO) getLatestPosts() []Post {
@@ -237,14 +240,14 @@ func (d *DAO) getMostViewedPosts() []Post {
 	var posts []Post
 	err := d.db.Select(
 		&posts,
-		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p JOIN (
-			SELECT post_id, COUNT(*) AS counted 
-			FROM showcash.views 
-			-- WHERE month = 'May'  -- or whatever is relevant
-			GROUP BY post_id 
-			ORDER BY counted DESC, post_id  -- to break ties in deterministic fashion 
-			LIMIT 8
-		) AS pop ON pop.post_id = p.id;`,
+		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p JOIN ( 
+			SELECT post_id, COUNT(*) AS counted  
+			FROM showcash.views  
+			-- WHERE month = 'May'  -- or whatever is relevant 
+			GROUP BY post_id  
+			ORDER BY counted DESC, post_id  -- to break ties in deterministic fashion  
+			LIMIT 12
+		) AS pop ON pop.post_id = p.id LIMIT 8`,
 	)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Println("getMostViewedPosts() failed", err)
