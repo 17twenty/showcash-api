@@ -243,7 +243,7 @@ func (d *DAO) getMostViewedPosts() []Post {
 			-- WHERE month = 'May'  -- or whatever is relevant
 			GROUP BY post_id 
 			ORDER BY counted DESC, post_id  -- to break ties in deterministic fashion 
-			LIMIT 12
+			LIMIT 8
 		) AS pop ON pop.post_id = p.id;`,
 	)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
