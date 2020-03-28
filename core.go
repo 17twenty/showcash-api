@@ -268,7 +268,7 @@ func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 	result.ItemList = result.ItemList[:n]
 
 	wr.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(wr).Encode(resault); err != nil {
+	if err := json.NewEncoder(wr).Encode(result); err != nil {
 		log.Printf("Error Encoding JSON: %s", err)
 	}
 }
