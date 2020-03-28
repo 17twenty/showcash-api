@@ -142,14 +142,21 @@ func (c *Core) apiGetComments(wr http.ResponseWriter, req *http.Request) {
 
 	result := c.dao.getCommentsForPostID(postID)
 
-	var ln int
+	n := 0
 	for _, ip := range result {
-		if strings.Contains(strings.ToLower(ip.Comment), "porn") || strings.Contains(strings.ToLower(ip.Comment), "tran") || strings.Contains(strings.ToLower(ip.Comment), "ladyboy") || strings.Contains(strings.ToLower(ip.Comment), "xxx") || strings.Contains(strings.ToLower(ip.Comment), "xvideo") {
-			continue // drop IPv4 address
+		if strings.Contains(strings.ToLower(ip.Comment), "porn") ||
+			strings.Contains(strings.ToLower(ip.Comment), "tran") ||
+			strings.Contains(strings.ToLower(ip.Comment), "ladyboy") ||
+			strings.Contains(strings.ToLower(ip.Comment), "xxx") ||
+			strings.Contains(strings.ToLower(ip.Comment), "xvideo") {
+			continue
 		}
-		result[ln] = ip
-		ln++
+
+		result[n] = ip
+		n++
 	}
+
+	result = result[:n]
 
 	wr.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(wr).Encode(result); err != nil {
