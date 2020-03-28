@@ -238,19 +238,56 @@ func (d *DAO) getLatestPosts() []Post {
 
 func (d *DAO) getMostViewedPosts() []Post {
 	var posts []Post
+	// Porting from http://restfulmvc.com/reddit-algorithm.shtml
 	err := d.db.Select(
 		&posts,
-		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p JOIN ( 
-			SELECT post_id, COUNT(*) AS counted  
-			FROM showcash.views  
-			-- WHERE month = 'May'  -- or whatever is relevant 
-			GROUP BY post_id  
-			ORDER BY counted DESC, post_id  -- to break ties in deterministic fashion  
-			LIMIT 12
-		) AS pop ON pop.post_id = p.id LIMIT 8`,
+		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p JOIN LATERAL (  
+			SELECT post_id, LOG(10,COUNT(*) + 1) * 287015 + ( SELECT extract(epoch FROM p.date)) AS rating   
+			FROM showcash.views GROUP BY views.post_id 
+		) AS pop ON pop.post_id = p.id ORDER BY pop.rating DESC LIMIT 8`,
 	)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Println("getMostViewedPosts() failed", err)
 	}
 	return posts
+}
+
+func (d *DAO) getCommentsForPostID(postID uuid.UUID) []Comment {
+	var comments []Comment
+	err := d.db.Select(
+		&comments,
+		`SELECT
+			id,
+			date,
+			comment,
+			username,
+			user_id
+		FROM 
+			showcash.comments
+		WHERE post_id = $1`, postID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Println("getCommentsForPostID() failed", err)
+	}
+	return comments
+}
+
+// createComment WONT insert items from the item list by default
+func (d *DAO) createComment(userID uuid.UUID, postID uuid.UUID, c Comment) (Comment, error) {
+	c.ID = uuid.Must(uuid.NewV4())
+	c.Date = time.Now()
+	c.Username = "Anonymous Showcasher"
+
+	// TODO: Add userID/usernames etc
+	_, err := d.db.Exec(
+		`INSERT INTO showcash.comments(
+			post_id,
+			id,
+			date,
+			comment,
+			username
+		) VALUES (
+			$1, $2, $3, $4, $5
+		)`, postID, c.ID, c.Date, c.Comment, c.Username,
+	)
+	return c, err
 }

@@ -40,3 +40,14 @@ type Post struct {
 	Date     time.Time `json:"date"`
 	ItemList []Item    `json:"itemList"`
 }
+
+// Comment is a comment posted on a post
+type Comment struct {
+	ID       uuid.UUID `json:"id,omitempty"`
+	Date     time.Time `json:"date,omitempty"`
+	Comment  string    `json:"comment,omitempty"`
+	Username string    `json:"username,omitempty"`
+	UserID   uuid.UUID `json:"user_id,omitempty"`
+	// Points   int       `json:"points"`    // How many points this comment has
+	// HasVoted int       `json:"has_voted"` // If the user voted it up or down -1 | 0 | 1
+}

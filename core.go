@@ -82,6 +82,8 @@ func (c *Core) Start() {
 	apiRouter.HandleFunc("/view", c.apiPostIncreaseView).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/mostviewed", c.apiGetMostViewed).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/recent", c.apiGetMostRecent).Methods(http.MethodOptions, http.MethodGet)
+	apiRouter.HandleFunc("/comments/{guid}", c.apiGetComments).Methods(http.MethodOptions, http.MethodGet)
+	apiRouter.HandleFunc("/comments/{guid}", c.apiPostComment).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/me", c.apiPostCash).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/remove/{guid}", c.apiDeletePost).Methods(http.MethodOptions, http.MethodDelete)
 	apiRouter.HandleFunc("/me/{guid}", c.apiPutCash).Methods(http.MethodOptions, http.MethodPut)
@@ -105,6 +107,43 @@ func (c *Core) Start() {
 	http.Handle("/", r)
 	log.Println("Showcashing on port 8080...")
 	http.ListenAndServe(":8080", nil)
+}
+
+func (c *Core) apiPostComment(wr http.ResponseWriter, req *http.Request) {
+	postID := uuid.FromStringOrNil(mux.Vars(req)["guid"])
+	if postID == uuid.Nil {
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	comment := Comment{}
+	if err := json.NewDecoder(req.Body).Decode(&comment); err != nil {
+		log.Println("apiPostComment.Decode() failed", err)
+		wr.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	result, err := c.dao.createComment(uuid.Nil, postID, comment)
+	if err != nil {
+		log.Println("apiPostComment().createComment failed", err)
+	}
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(result); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
+}
+
+func (c *Core) apiGetComments(wr http.ResponseWriter, req *http.Request) {
+	postID := uuid.FromStringOrNil(mux.Vars(req)["guid"])
+	if postID == uuid.Nil {
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	result := c.dao.getCommentsForPostID(postID)
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(result); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
 }
 
 func (c *Core) apiPostIncreaseView(wr http.ResponseWriter, req *http.Request) {
