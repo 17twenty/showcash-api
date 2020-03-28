@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -144,11 +143,7 @@ func (c *Core) apiGetComments(wr http.ResponseWriter, req *http.Request) {
 
 	n := 0
 	for _, ip := range result {
-		if strings.Contains(strings.ToLower(ip.Comment), "porn") ||
-			strings.Contains(strings.ToLower(ip.Comment), "tran") ||
-			strings.Contains(strings.ToLower(ip.Comment), "ladyboy") ||
-			strings.Contains(strings.ToLower(ip.Comment), "xxx") ||
-			strings.Contains(strings.ToLower(ip.Comment), "xvideo") {
+		if !isAllowed(ip.Comment) {
 			continue
 		}
 
@@ -262,21 +257,7 @@ func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 
 	n := 0
 	for _, ip := range result.ItemList {
-		if strings.Contains(strings.ToLower(ip.Link), "porn") ||
-			strings.Contains(strings.ToLower(ip.Link), "tran") ||
-			strings.Contains(strings.ToLower(ip.Link), "ladyboy") ||
-			strings.Contains(strings.ToLower(ip.Link), "xxx") ||
-			strings.Contains(strings.ToLower(ip.Link), "xvideo") ||
-			strings.Contains(strings.ToLower(ip.Description), "porn") ||
-			strings.Contains(strings.ToLower(ip.Description), "tran") ||
-			strings.Contains(strings.ToLower(ip.Description), "ladyboy") ||
-			strings.Contains(strings.ToLower(ip.Description), "xxx") ||
-			strings.Contains(strings.ToLower(ip.Description), "xvideo") ||
-			strings.Contains(strings.ToLower(ip.Description), "porn") ||
-			strings.Contains(strings.ToLower(ip.Title), "tran") ||
-			strings.Contains(strings.ToLower(ip.Title), "ladyboy") ||
-			strings.Contains(strings.ToLower(ip.Title), "xxx") ||
-			strings.Contains(strings.ToLower(ip.Title), "xvideo") {
+		if !isAllowed(ip.Link) || !isAllowed(ip.Description) || !isAllowed(ip.Title) {
 			continue
 		}
 
