@@ -260,6 +260,32 @@ func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	n := 0
+	for _, ip := range result.ItemList {
+		if strings.Contains(strings.ToLower(ip.Link), "porn") ||
+			strings.Contains(strings.ToLower(ip.Link), "tran") ||
+			strings.Contains(strings.ToLower(ip.Link), "ladyboy") ||
+			strings.Contains(strings.ToLower(ip.Link), "xxx") ||
+			strings.Contains(strings.ToLower(ip.Link), "xvideo") ||
+			strings.Contains(strings.ToLower(ip.Description), "porn") ||
+			strings.Contains(strings.ToLower(ip.Description), "tran") ||
+			strings.Contains(strings.ToLower(ip.Description), "ladyboy") ||
+			strings.Contains(strings.ToLower(ip.Description), "xxx") ||
+			strings.Contains(strings.ToLower(ip.Description), "xvideo") ||
+			strings.Contains(strings.ToLower(ip.Description), "porn") ||
+			strings.Contains(strings.ToLower(ip.Title), "tran") ||
+			strings.Contains(strings.ToLower(ip.Title), "ladyboy") ||
+			strings.Contains(strings.ToLower(ip.Title), "xxx") ||
+			strings.Contains(strings.ToLower(ip.Title), "xvideo") {
+			continue
+		}
+
+		result.ItemList[n] = ip
+		n++
+	}
+
+	result.ItemList = result.ItemList[:n]
+
 	wr.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(wr).Encode(result); err != nil {
 		log.Printf("Error Encoding JSON: %s", err)
