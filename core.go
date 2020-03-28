@@ -257,7 +257,7 @@ func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 
 	n := 0
 	for _, ip := range result.ItemList {
-		if !isAllowed(ip.Link) || !isAllowed(ip.Description) || !isAllowed(ip.Title) {
+		if !isAllowed(ip.Link) || !isAllowed(ip.Description) {
 			continue
 		}
 
@@ -268,7 +268,7 @@ func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 	result.ItemList = result.ItemList[:n]
 
 	wr.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(wr).Encode(result); err != nil {
+	if err := json.NewEncoder(wr).Encode(resault); err != nil {
 		log.Printf("Error Encoding JSON: %s", err)
 	}
 }
