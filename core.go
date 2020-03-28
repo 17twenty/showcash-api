@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -140,6 +141,16 @@ func (c *Core) apiGetComments(wr http.ResponseWriter, req *http.Request) {
 	}
 
 	result := c.dao.getCommentsForPostID(postID)
+
+	var ln int
+	for _, ip := range result {
+		if strings.Contains(strings.ToLower(ip.Comment), "porn") || strings.Contains(strings.ToLower(ip.Comment), "tran") || strings.Contains(strings.ToLower(ip.Comment), "ladyboy") || strings.Contains(strings.ToLower(ip.Comment), "xxx") || strings.Contains(strings.ToLower(ip.Comment), "xvideo") {
+			continue // drop IPv4 address
+		}
+		result[ln] = ip
+		ln++
+	}
+
 	wr.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(wr).Encode(result); err != nil {
 		log.Printf("Error Encoding JSON: %s", err)
