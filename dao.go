@@ -227,7 +227,7 @@ func (d *DAO) getLatestPosts() []Post {
 		&posts,
 		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p  
 		ORDER BY created_at DESC   
-		LIMIT 12`,
+		LIMIT 8`,
 	)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Println("getMostViewedPosts() failed", err)
