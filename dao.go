@@ -291,3 +291,82 @@ func (d *DAO) createComment(userID uuid.UUID, postID uuid.UUID, c Comment) (Comm
 	)
 	return c, err
 }
+
+func (d *DAO) getUserByID(userID uuid.UUID) (User, error) {
+	u := User{}
+	err := d.db.Get(&u,
+		`SELECT
+			username,
+			realname,
+			location,
+			profile_uri,
+			bio,
+			social_1,
+			social_2,
+			social_3,
+			email_address,
+			created_at
+		FROM 
+			showcash.user
+		WHERE user_id = $1`, userID,
+	)
+
+	return u, err
+}
+
+func (d *DAO) getUserByUsernameAndPassword(username, password string) (User, error) {
+	u := User{}
+	err := d.db.Get(&u,
+		`SELECT	
+			user_id,
+			username,
+			realname,
+			location,
+			profile_uri,
+			bio,
+			social_1,
+			social_2,
+			social_3,
+			email_address,
+			password,
+			shadow_banned
+		FROM 
+			showcash.user
+		WHERE username = $1 AND password = $2`, username, password,
+	)
+
+	return u, err
+}
+
+func (d *DAO) createUser(u User) (User, error) {
+	u.UserID = uuid.Must(uuid.NewV4())
+
+	_, err := d.db.NamedExec(
+		`INSERT INTO showcash.user(
+			user_id,
+			username,
+			realname,
+			location,
+			profile_uri,
+			bio,
+			social_1,
+			social_2,
+			social_3,
+			email_address,
+			password
+		) VALUES (
+			:user_id,
+			:username,
+			:realname,
+			:location,
+			:profile_uri,
+			:bio,
+			:social_1,
+			:social_2,
+			:social_3,
+			:email_address,
+			:password
+		)`, u,
+	)
+	return u, err
+}

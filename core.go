@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/17twenty/gorillimiter"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -46,15 +47,6 @@ func New(dao *DAO, useS3 bool) *Core {
 	}
 }
 
-func createAuthTokenCookie(token string) *http.Cookie {
-	return &http.Cookie{
-		Name:    "jwt-token",
-		Value:   token,
-		Path:    "/",
-		Expires: time.Now().UTC().Add(time.Hour * 24 * 30),
-	}
-}
-
 func jsonMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
@@ -77,31 +69,60 @@ func (c *Core) Start() {
 	staticRouter := r.PathPrefix("/static/")
 	staticRouter.Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
 
+	// Auth endpoints
+	authRouter := r.PathPrefix("/auth/").Subrouter()
+	authRouter.HandleFunc("/login", c.apiPostLogin).Methods(http.MethodOptions, http.MethodPost)
+	authRouter.HandleFunc("/logout", c.apiGetLogout).Methods(http.MethodOptions, http.MethodGet)
+	authRouter.HandleFunc("/register", c.apiPostSignup).Methods(http.MethodOptions, http.MethodPost)
+
 	// API endpoints
 	apiRouter := r.PathPrefix("/api/").Subrouter()
 	apiRouter.HandleFunc("/view", c.apiPostIncreaseView).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/mostviewed", c.apiGetMostViewed).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/recent", c.apiGetMostRecent).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/comments/{guid}", c.apiGetComments).Methods(http.MethodOptions, http.MethodGet)
-	apiRouter.HandleFunc("/comments/{guid}", c.apiPostComment).Methods(http.MethodOptions, http.MethodPost)
-	apiRouter.HandleFunc("/me", c.apiPostCash).Methods(http.MethodOptions, http.MethodPost)
+	apiRouter.HandleFunc("/comments/{guid}", authMiddleware(c.apiPostComment)).Methods(http.MethodOptions, http.MethodPost)
+	apiRouter.HandleFunc("/me", authMiddleware(c.apiPostCash)).Methods(http.MethodOptions, http.MethodPost)
+	apiRouter.HandleFunc("/me", authMiddleware(c.getMe)).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/remove/{guid}", c.apiDeletePost).Methods(http.MethodOptions, http.MethodDelete)
-	apiRouter.HandleFunc("/me/{guid}", c.apiPutCash).Methods(http.MethodOptions, http.MethodPut)
+	apiRouter.HandleFunc("/me/{guid}", authMiddleware(c.apiPutCash)).Methods(http.MethodOptions, http.MethodPut)
 	apiRouter.HandleFunc("/me/{guid}", c.apiGetCash).Methods(http.MethodOptions, http.MethodGet)
 
-	apiRouter.Use(jsonMiddleware, handlers.CORS(
-		handlers.AllowedMethods([]string{
-			http.MethodGet,
-			http.MethodHead,
-			http.MethodPost,
-			http.MethodPut,
-			http.MethodDelete,
-			http.MethodOptions,
-			http.MethodPatch,
-		}),
-		handlers.AllowedHeaders([]string{"X-Requested-With", "Authorization", "Access-Control-Allow-Methods", "Access-Control-Allow-Origin", "Origin", "Accept", "Content-Type"}),
-		handlers.AllowedOrigins([]string{"http://localhost:8080", "http://localhost:8081", "https://api.showcash.io", "https://showcash.io"}),
-		handlers.AllowCredentials()),
+	defaultLimiter := func(next http.Handler) http.Handler {
+		return gorillimiter.Limiter(next, 3, time.Second)
+	}
+	authRouter.Use(jsonMiddleware,
+		defaultLimiter,
+		handlers.CORS(
+			handlers.AllowedMethods([]string{
+				http.MethodGet,
+				http.MethodHead,
+				http.MethodPost,
+				http.MethodPut,
+				http.MethodDelete,
+				http.MethodOptions,
+				http.MethodPatch,
+			}),
+			handlers.AllowedHeaders([]string{"X-Requested-With", "Authorization", "Access-Control-Allow-Methods", "Access-Control-Allow-Origin", "Origin", "Accept", "Content-Type"}),
+			handlers.AllowedOrigins([]string{"http://localhost:8080", "http://localhost:8081", "https://api.showcash.io", "https://showcash.io"}),
+			handlers.AllowCredentials()),
+	)
+
+	apiRouter.Use(jsonMiddleware,
+		defaultLimiter,
+		handlers.CORS(
+			handlers.AllowedMethods([]string{
+				http.MethodGet,
+				http.MethodHead,
+				http.MethodPost,
+				http.MethodPut,
+				http.MethodDelete,
+				http.MethodOptions,
+				http.MethodPatch,
+			}),
+			handlers.AllowedHeaders([]string{"X-Requested-With", "Authorization", "Access-Control-Allow-Methods", "Access-Control-Allow-Origin", "Origin", "Accept", "Content-Type"}),
+			handlers.AllowedOrigins([]string{"http://localhost:8080", "http://localhost:8081", "https://api.showcash.io", "https://showcash.io"}),
+			handlers.AllowCredentials()),
 	)
 
 	http.Handle("/", r)
@@ -129,6 +150,16 @@ func (c *Core) apiPostComment(wr http.ResponseWriter, req *http.Request) {
 	wr.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(wr).Encode(result); err != nil {
 		log.Printf("Error Encoding JSON: %s", err)
+	}
+}
+
+func (c *Core) getMe(wr http.ResponseWriter, req *http.Request) {
+	u := GetSessionFromContext(req)
+	if u != nil {
+		user, _ := c.dao.getUserByID(u.UserID)
+		if err := json.NewEncoder(wr).Encode(user); err != nil {
+			log.Printf("Error Encoding JSON: %s", err)
+		}
 	}
 }
 

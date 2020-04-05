@@ -51,3 +51,20 @@ type Comment struct {
 	// Points   int       `json:"points"`    // How many points this comment has
 	// HasVoted int       `json:"has_voted"` // If the user voted it up or down -1 | 0 | 1
 }
+
+// User is a showcash user
+type User struct {
+	UserID       uuid.UUID `json:"user_id,omitempty"`
+	Username     string    `json:"username,omitempty"`
+	RealName     string    `json:"realname,omitempty"`
+	Location     string    `json:"location,omitempty"`
+	ProfileURI   string    `json:"profile_uri,omitempty"`
+	Bio          string    `json:"bio,omitempty"`
+	Social1      string    `json:"social_1,omitempty"`
+	Social2      string    `json:"social_2,omitempty"`
+	Social3      string    `json:"social_3,omitempty"`
+	EmailAddress string    `json:"email_address,omitempty"`
+	Password     string    `json:"password,omitempty"`
+	ShadowBanned bool      `json:"shadow_banned,omitempty"`
+	CreatedAt    time.Time `json:"created_at,omitempty"`
+}
