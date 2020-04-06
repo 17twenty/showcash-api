@@ -108,6 +108,10 @@ func authMiddleware(h http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
+		if req.Method == http.MethodOptions {
+			wr.WriteHeader(http.StatusOK)
+			return
+		}
 		jsonResponse(wr, "Couldnt get the right stuff", http.StatusForbidden)
 	})
 }
