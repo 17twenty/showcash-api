@@ -84,6 +84,7 @@ func (c *Core) Start() {
 	apiRouter.HandleFunc("/comments/{guid}", authMiddleware(c.apiPostComment)).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/me", authMiddleware(c.apiPostCash)).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/remove/{guid}", c.apiDeletePost).Methods(http.MethodOptions, http.MethodDelete)
+	apiRouter.HandleFunc("/claim/{uuid}/{guid}", c.apiClaimPost).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/me/{guid}", authMiddleware(c.apiPutCash)).Methods(http.MethodOptions, http.MethodPut)
 	apiRouter.HandleFunc("/me/{guid}", c.apiGetCash).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/profile", authMiddleware(c.apiGetMe)).Methods(http.MethodOptions, http.MethodGet)
@@ -235,6 +236,28 @@ func (c *Core) apiPostIncreaseView(wr http.ResponseWriter, req *http.Request) {
 	}
 
 	c.dao.increaseView(payload.ID, payload.Identifier)
+}
+func (c *Core) apiClaimPost(wr http.ResponseWriter, req *http.Request) {
+	postID := uuid.FromStringOrNil(mux.Vars(req)["guid"])
+	userID := uuid.FromStringOrNil(mux.Vars(req)["uuid"])
+
+	if userID == uuid.Nil {
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
+	msg := "ok"
+	err := c.dao.claimPost(userID, postID)
+	if err != nil {
+		msg = fmt.Sprintf("Error %v", err)
+	}
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(struct {
+		Result string `json:"result,omitempty"`
+	}{
+		Result: msg,
+	}); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
 }
 func (c *Core) apiDeletePost(wr http.ResponseWriter, req *http.Request) {
 	slug, _ := mux.Vars(req)["guid"]

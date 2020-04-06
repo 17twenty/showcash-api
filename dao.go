@@ -75,24 +75,38 @@ func (d *DAO) createPost(userID uuid.UUID, p Post) (Post, error) {
 	p.ID = uuid.Must(uuid.NewV4())
 	p.Date = time.Now()
 
-	_, err := d.db.NamedExec(
+	_, err := d.db.Exec(
 		`INSERT INTO showcash.post(
+			user_id,
 			id,
 			title,
 			imageuri,
 			date
 		) VALUES (
-			:id,
-			:title,
-			:imageuri,
-			:date
-		)`, &p)
+			$1, $2, $3, $4, $5
+		)`, userID, p.ID, p.Title, p.ImageURI, p.Date)
 	if err != nil {
 		return Post{}, err
 	}
 
 	// Note: need for items here
 	return p, err
+}
+
+func (d *DAO) claimPost(userID uuid.UUID, postID uuid.UUID) error {
+	if postID == uuid.Nil {
+		_, err := d.db.Exec(
+			`UPDATE showcash.post SET 
+				user_id = $1
+			`, userID)
+		return err
+	}
+	_, err := d.db.Exec(
+		`UPDATE showcash.post SET 
+			user_id = $1
+			WHERE id = $2
+		`, userID, postID)
+	return err
 }
 
 func (d *DAO) updatePost(userID uuid.UUID, p Post) (Post, error) {
