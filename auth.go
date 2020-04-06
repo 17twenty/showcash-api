@@ -136,7 +136,7 @@ func GetSessionFromContext(req *http.Request) *User {
 func (c *Core) apiGetLogout(wr http.ResponseWriter, req *http.Request) {
 	u := GetSessionFromContext(req)
 	if u != nil {
-		log.Println("Just logged out", u.Username)
+		log.Println(u.Username, "just logged out")
 	}
 	clearUserCookie(wr)
 }
