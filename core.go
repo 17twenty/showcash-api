@@ -83,10 +83,12 @@ func (c *Core) Start() {
 	apiRouter.HandleFunc("/comments/{guid}", c.apiGetComments).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/comments/{guid}", authMiddleware(c.apiPostComment)).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/me", authMiddleware(c.apiPostCash)).Methods(http.MethodOptions, http.MethodPost)
-	apiRouter.HandleFunc("/me", authMiddleware(c.getMe)).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/remove/{guid}", c.apiDeletePost).Methods(http.MethodOptions, http.MethodDelete)
 	apiRouter.HandleFunc("/me/{guid}", authMiddleware(c.apiPutCash)).Methods(http.MethodOptions, http.MethodPut)
 	apiRouter.HandleFunc("/me/{guid}", c.apiGetCash).Methods(http.MethodOptions, http.MethodGet)
+	apiRouter.HandleFunc("/profile", authMiddleware(c.apiGetMe)).Methods(http.MethodOptions, http.MethodGet)
+	apiRouter.HandleFunc("/profile", authMiddleware(c.apiPutMe)).Methods(http.MethodOptions, http.MethodPut)
+	apiRouter.HandleFunc("/profile/{handle}", c.apiGetUserProfile).Methods(http.MethodOptions, http.MethodGet)
 
 	defaultLimiter := func(next http.Handler) http.Handler {
 		return gorillimiter.Limiter(next, 3, time.Second)
@@ -137,13 +139,22 @@ func (c *Core) apiPostComment(wr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	u := GetSessionFromContext(req)
+	if u == nil {
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
+
 	comment := Comment{}
 	if err := json.NewDecoder(req.Body).Decode(&comment); err != nil {
 		log.Println("apiPostComment.Decode() failed", err)
 		wr.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	result, err := c.dao.createComment(uuid.Nil, postID, comment)
+
+	comment.Username = u.Username
+	comment.UserID = u.UserID
+	result, err := c.dao.createComment(u.UserID, postID, comment)
 	if err != nil {
 		log.Println("apiPostComment().createComment failed", err)
 	}
@@ -153,13 +164,34 @@ func (c *Core) apiPostComment(wr http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (c *Core) getMe(wr http.ResponseWriter, req *http.Request) {
+func (c *Core) apiGetMe(wr http.ResponseWriter, req *http.Request) {
 	u := GetSessionFromContext(req)
 	if u != nil {
-		user, _ := c.dao.getUserByID(u.UserID)
+		profile, _ := c.dao.getUserProfileByID(u.UserID)
+		if err := json.NewEncoder(wr).Encode(profile); err != nil {
+			log.Printf("Error Encoding JSON: %s", err)
+		}
+	}
+}
+func (c *Core) apiPutMe(wr http.ResponseWriter, req *http.Request) {
+	u := GetSessionFromContext(req)
+	if u != nil {
+		user, _ := c.dao.getUserProfileByID(u.UserID)
 		if err := json.NewEncoder(wr).Encode(user); err != nil {
 			log.Printf("Error Encoding JSON: %s", err)
 		}
+	}
+}
+func (c *Core) apiGetUserProfile(wr http.ResponseWriter, req *http.Request) {
+	handle := mux.Vars(req)["handle"]
+	if !isValidHandle(handle) {
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
+	user, _ := c.dao.getUserProfileByHandle(handle)
+	user.Friends = []UserProfile{} // remove user friends
+	if err := json.NewEncoder(wr).Encode(user); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
 	}
 }
 
@@ -233,6 +265,13 @@ func (c *Core) apiPutCash(wr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	u := GetSessionFromContext(req)
+	if u == nil {
+		log.Println("No user context")
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
+
 	payload := Post{}
 	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 		log.Println("apiPutCash.Decode() failed", err)
@@ -240,7 +279,7 @@ func (c *Core) apiPutCash(wr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	result, err := c.dao.updatePost(uuid.Nil, payload)
+	result, err := c.dao.updatePost(u.UserID, payload)
 	if err != nil {
 		log.Println("updatePost() Failed", err)
 		wr.WriteHeader(http.StatusNotFound)
@@ -305,7 +344,12 @@ func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 }
 
 func (c *Core) apiPostCash(wr http.ResponseWriter, req *http.Request) {
-	log.Println("Got data")
+	u := GetSessionFromContext(req)
+	if u == nil {
+		log.Println("Invalid post", u.Username)
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
 	payload := struct {
 		File     string `json:"file,omitempty"`
 		Filename string `json:"filename,omitempty"`
@@ -371,7 +415,7 @@ func (c *Core) apiPostCash(wr http.ResponseWriter, req *http.Request) {
 	newPost := Post{
 		ImageURI: generatedImageURI,
 	}
-	result, err := c.dao.createPost(uuid.Nil, newPost)
+	result, err := c.dao.createPost(u.UserID, newPost)
 	if err != nil {
 		log.Fatalln("WTF?", err)
 	}

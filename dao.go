@@ -155,12 +155,13 @@ func (d *DAO) getPost(postID uuid.UUID) (Post, error) {
 	if err := d.db.Get(
 		&p,
 		`SELECT 
-			id,
-			title,
-			imageuri,
-			date
+			p.id,
+			p.title,
+			p.imageuri,
+			p.date,
+			u.username
 		FROM
-			showcash.post
+			showcash.post AS p JOIN showcash.user AS u ON u.user_id = p.user_id
 		WHERE id = $1
 		LIMIT 1`, postID,
 	); err != nil {
@@ -225,12 +226,13 @@ func (d *DAO) getLatestPosts() []Post {
 	var posts []Post
 	err := d.db.Select(
 		&posts,
-		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p  
-		ORDER BY created_at DESC   
+		`SELECT p.id,p.imageuri,p.title,p.date,
+		u.username FROM showcash.post AS p JOIN showcash.user AS u ON p.user_id = u.user_id
+		ORDER BY p.created_at DESC   
 		LIMIT 8`,
 	)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		log.Println("getMostViewedPosts() failed", err)
+		log.Println("getLatestPosts() failed", err)
 	}
 
 	return posts
@@ -241,7 +243,7 @@ func (d *DAO) getMostViewedPosts() []Post {
 	// Porting from http://restfulmvc.com/reddit-algorithm.shtml
 	err := d.db.Select(
 		&posts,
-		`SELECT p.id,p.imageuri,p.title,p.date FROM showcash.post AS p JOIN LATERAL (  
+		`SELECT p.id,p.imageuri,p.title,p.date,u.username FROM showcash.post AS p JOIN showcash.user AS u ON p.user_id = u.user_id JOIN LATERAL (  
 			SELECT post_id, LOG(10,COUNT(*) + 1) * 287015 + ( SELECT extract(epoch FROM p.date)) AS rating   
 			FROM showcash.views GROUP BY views.post_id 
 		) AS pop ON pop.post_id = p.id ORDER BY pop.rating DESC LIMIT 8`,
@@ -275,7 +277,6 @@ func (d *DAO) getCommentsForPostID(postID uuid.UUID) []Comment {
 func (d *DAO) createComment(userID uuid.UUID, postID uuid.UUID, c Comment) (Comment, error) {
 	c.ID = uuid.Must(uuid.NewV4())
 	c.Date = time.Now()
-	c.Username = "Anonymous Showcasher"
 
 	// TODO: Add userID/usernames etc
 	_, err := d.db.Exec(
@@ -284,17 +285,18 @@ func (d *DAO) createComment(userID uuid.UUID, postID uuid.UUID, c Comment) (Comm
 			id,
 			date,
 			comment,
-			username
+			username,
+			user_id
 		) VALUES (
-			$1, $2, $3, $4, $5
-		)`, postID, c.ID, c.Date, c.Comment, c.Username,
+			$1, $2, $3, $4, $5, $6
+		)`, postID, c.ID, c.Date, c.Comment, c.Username, userID,
 	)
 	return c, err
 }
 
-func (d *DAO) getUserByID(userID uuid.UUID) (User, error) {
-	u := User{}
-	err := d.db.Get(&u,
+func (d *DAO) getUserProfileByID(userID uuid.UUID) (UserProfile, error) {
+	up := UserProfile{}
+	err := d.db.Get(&up,
 		`SELECT
 			username,
 			realname,
@@ -304,14 +306,43 @@ func (d *DAO) getUserByID(userID uuid.UUID) (User, error) {
 			social_1,
 			social_2,
 			social_3,
-			email_address,
 			created_at
 		FROM 
 			showcash.user
 		WHERE user_id = $1`, userID,
 	)
 
-	return u, err
+	up.Interests = []string{"MFA"}
+	up.Friends = []UserProfile{}
+	up.Followers = []UserProfile{}
+
+	return up, err
+}
+
+func (d *DAO) getUserProfileByHandle(handle string) (UserProfile, error) {
+	up := UserProfile{}
+	err := d.db.Get(&up,
+		`SELECT
+			user_id,
+			username,
+			realname,
+			location,
+			profile_uri,
+			bio,
+			social_1,
+			social_2,
+			social_3,
+			created_at
+		FROM 
+			showcash.user
+		WHERE username = $1`, handle,
+	)
+
+	up.Interests = []string{"MFA"}
+	up.Friends = []UserProfile{}
+	up.Followers = []UserProfile{}
+
+	return up, err
 }
 
 func (d *DAO) getUserByUsernameAndPassword(username, password string) (User, error) {

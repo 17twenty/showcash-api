@@ -51,8 +51,6 @@ func pgErrIs(got error, test error) bool {
 		default:
 			log.Println("Unknown Code", e)
 		}
-	} else {
-		log.Println("Not OK -- not the right error")
 	}
 
 	return false

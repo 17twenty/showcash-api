@@ -35,6 +35,7 @@ type Item struct {
 // Post is the type used for wrapping cool shit
 type Post struct {
 	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username,omitempty"`
 	Title    string    `json:"title"`
 	ImageURI string    `json:"imageuri"`
 	Date     time.Time `json:"date"`
@@ -67,4 +68,22 @@ type User struct {
 	Password     string    `json:"password,omitempty"`
 	ShadowBanned bool      `json:"shadow_banned,omitempty"`
 	CreatedAt    time.Time `json:"created_at,omitempty"`
+}
+
+// UserProfile is a showcash profile
+// That can link to other profiles
+type UserProfile struct {
+	UserID      uuid.UUID     `json:"user_id,omitempty"`
+	Username    string        `json:"username,omitempty"`
+	RealName    string        `json:"realname,omitempty"`
+	Location    string        `json:"location,omitempty"`
+	ProfileURI  string        `json:"profile_uri,omitempty"`
+	Bio         string        `json:"bio,omitempty"`
+	Social1     string        `json:"social_1,omitempty"`
+	Social2     string        `json:"social_2,omitempty"`
+	Social3     string        `json:"social_3,omitempty"`
+	Friends     []UserProfile `json:"friends,omitempty"`
+	Followers   []UserProfile `json:"followers,omitempty"`
+	Interests   []string      `json:"interests,omitempty"`
+	MemberSince time.Time     `json:"created_at,omitempty"`
 }
