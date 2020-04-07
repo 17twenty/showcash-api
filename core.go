@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/17twenty/gorillimiter"
+	"github.com/17twenty/showcash-api/pkg/jogly"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -91,6 +92,10 @@ func (c *Core) Start() {
 	apiRouter.HandleFunc("/profile", authMiddleware(c.apiPutMe)).Methods(http.MethodOptions, http.MethodPut)
 	apiRouter.HandleFunc("/profile/{handle}", c.apiGetUserProfile).Methods(http.MethodOptions, http.MethodGet)
 
+	// Waitlist goes to Slack
+	apiRouter.HandleFunc("/waitlist", c.apiPostWaitlist).Methods(http.MethodOptions, http.MethodPost)
+	apiRouter.HandleFunc("/recommend", c.apiPostRecommend).Methods(http.MethodOptions, http.MethodPost)
+
 	defaultLimiter := func(next http.Handler) http.Handler {
 		return gorillimiter.Limiter(next, 3, time.Second)
 	}
@@ -131,6 +136,54 @@ func (c *Core) Start() {
 	http.Handle("/", r)
 	log.Println("Showcashing on port 8080...")
 	http.ListenAndServe(":8080", nil)
+}
+
+func (c *Core) apiPostRecommend(wr http.ResponseWriter, req *http.Request) {
+	v := struct {
+		Name         string `json:"name,omitempty"`
+		EmailAddress string `json:"email_address,omitempty"`
+		Why          string `json:"why,omitempty"`
+	}{}
+	if err := json.NewDecoder(req.Body).Decode(&v); err != nil {
+		log.Println("apiPostComment.Decode() failed", err)
+		wr.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	jogly.New("https://api.jogly.io/e/hook/0a5a6809-d96f-4ade-a0eb-903c22dedb3a/").Serialise(struct {
+		Name         string
+		EmailAddress string
+		Why          string
+	}{
+		Name:         v.Name,
+		EmailAddress: v.EmailAddress,
+		Why:          v.Why,
+	}).Post()
+}
+
+func (c *Core) apiPostWaitlist(wr http.ResponseWriter, req *http.Request) {
+	// https://api.jogly.io/e/hook/0a5a6809-d96f-4ade-a0eb-903c22dedb3a/
+	// Post to Showcash
+	u := User{}
+	if err := json.NewDecoder(req.Body).Decode(&u); err != nil {
+		log.Println("apiPostWaitlist.Decode() failed", err)
+		wr.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	jogly.New("https://api.jogly.io/e/hook/0a5a6809-d96f-4ade-a0eb-903c22dedb3a/").Serialise(struct {
+		Username     string
+		Location     string
+		Realname     string
+		Bio          string
+		EmailAddress string
+	}{
+		Username:     u.Username,
+		Location:     u.Location,
+		Realname:     u.RealName,
+		Bio:          u.Bio,
+		EmailAddress: u.EmailAddress,
+	}).Post()
 }
 
 func (c *Core) apiPostComment(wr http.ResponseWriter, req *http.Request) {
