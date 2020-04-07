@@ -81,6 +81,7 @@ func (c *Core) Start() {
 	apiRouter.HandleFunc("/view", c.apiPostIncreaseView).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/mostviewed", c.apiGetMostViewed).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/recent", c.apiGetMostRecent).Methods(http.MethodOptions, http.MethodGet)
+	apiRouter.HandleFunc("/recent/{guid}", c.apiGetUsersMostRecent).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/comments/{guid}", c.apiGetComments).Methods(http.MethodOptions, http.MethodGet)
 	apiRouter.HandleFunc("/comments/{guid}", authMiddleware(c.apiPostComment)).Methods(http.MethodOptions, http.MethodPost)
 	apiRouter.HandleFunc("/me", authMiddleware(c.apiPostCash)).Methods(http.MethodOptions, http.MethodPost)
@@ -388,6 +389,21 @@ func (c *Core) apiGetMostRecent(wr http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (c *Core) apiGetUsersMostRecent(wr http.ResponseWriter, req *http.Request) {
+	userID := uuid.FromStringOrNil(mux.Vars(req)["guid"])
+	if userID == uuid.Nil {
+		log.Println("got uuid.Nil")
+		wr.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	result := c.dao.getUsersLatestPosts(userID)
+	wr.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(wr).Encode(result); err != nil {
+		log.Printf("Error Encoding JSON: %s", err)
+	}
+}
+
 func (c *Core) apiGetMostViewed(wr http.ResponseWriter, req *http.Request) {
 	result := c.dao.getMostViewedPosts()
 	wr.Header().Set("Content-Type", "application/json")
@@ -397,8 +413,7 @@ func (c *Core) apiGetMostViewed(wr http.ResponseWriter, req *http.Request) {
 }
 
 func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
-	slug, _ := mux.Vars(req)["guid"]
-	postID := uuid.FromStringOrNil(slug)
+	postID := uuid.FromStringOrNil(mux.Vars(req)["guid"])
 
 	if postID == uuid.Nil {
 		log.Println("got uuid.Nil")
