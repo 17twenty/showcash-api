@@ -415,3 +415,19 @@ func (d *DAO) createUser(u User) (User, error) {
 	)
 	return u, err
 }
+
+func (d *DAO) updateUser(u User) (User, error) {
+	_, err := d.db.Exec(
+		`UPDATE showcash.user SET
+			realname   = $1,
+			location   = $2,
+			bio        = $3,
+			social_1   = $4,
+			social_2   = $5,
+			social_3   = $6
+			WHERE user_id = $7`,
+		u.RealName, u.Location, u.Bio, u.Social1, u.Social2, u.Social3, u.UserID,
+	)
+
+	return u, err
+}

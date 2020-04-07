@@ -228,10 +228,22 @@ func (c *Core) apiGetMe(wr http.ResponseWriter, req *http.Request) {
 	}
 }
 func (c *Core) apiPutMe(wr http.ResponseWriter, req *http.Request) {
-	u := GetSessionFromContext(req)
-	if u != nil {
-		user, _ := c.dao.getUserProfileByID(u.UserID)
-		if err := json.NewEncoder(wr).Encode(user); err != nil {
+	session := GetSessionFromContext(req)
+	if session != nil {
+
+		user := User{}
+		// Get the payload
+		if err := json.NewDecoder(req.Body).Decode(&user); err != nil {
+			log.Println("apiPutMe.Decode() failed", err)
+			wr.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Verify we only modify the logged in user
+		user.UserID = session.UserID
+
+		current, _ := c.dao.updateUser(user)
+		if err := json.NewEncoder(wr).Encode(current); err != nil {
 			log.Printf("Error Encoding JSON: %s", err)
 		}
 	}
