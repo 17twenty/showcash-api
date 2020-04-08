@@ -259,7 +259,7 @@ func (d *DAO) getUsersLatestPosts(userID uuid.UUID) []Post {
 		u.username FROM showcash.post AS p JOIN showcash.user AS u ON p.user_id = u.user_id
 		WHERE u.user_id = $1
 		ORDER BY p.created_at DESC   
-		LIMIT 12`, userID,
+		LIMIT 50`, userID,
 	)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Println("getLatestPosts() failed", err)
