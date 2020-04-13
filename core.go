@@ -207,6 +207,12 @@ func (c *Core) apiPostComment(wr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if !isAllowed(comment.Comment) {
+		log.Println("Bad Comment Posted by", u.Username)
+		wr.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	comment.Username = u.Username
 	comment.UserID = u.UserID
 	result, err := c.dao.createComment(u.UserID, postID, comment)
@@ -251,7 +257,7 @@ func (c *Core) apiPutMe(wr http.ResponseWriter, req *http.Request) {
 }
 func (c *Core) apiGetUserProfile(wr http.ResponseWriter, req *http.Request) {
 	handle := mux.Vars(req)["handle"]
-	if !isValidHandle(handle) {
+	if !isAlphaNumeric(handle) {
 		wr.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -270,18 +276,6 @@ func (c *Core) apiGetComments(wr http.ResponseWriter, req *http.Request) {
 	}
 
 	result := c.dao.getCommentsForPostID(postID)
-
-	n := 0
-	for _, ip := range result {
-		if !isAllowed(ip.Comment) {
-			continue
-		}
-
-		result[n] = ip
-		n++
-	}
-
-	result = result[:n]
 
 	wr.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(wr).Encode(result); err != nil {
@@ -427,18 +421,6 @@ func (c *Core) apiGetCash(wr http.ResponseWriter, req *http.Request) {
 		wr.WriteHeader(http.StatusNotFound)
 		return
 	}
-
-	n := 0
-	for _, ip := range result.ItemList {
-		if !isAllowed(ip.Link) || !isAllowed(ip.Description) {
-			continue
-		}
-
-		result.ItemList[n] = ip
-		n++
-	}
-
-	result.ItemList = result.ItemList[:n]
 
 	wr.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(wr).Encode(result); err != nil {

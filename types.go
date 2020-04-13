@@ -40,6 +40,7 @@ type Post struct {
 	ImageURI string    `json:"imageuri"`
 	Date     time.Time `json:"date"`
 	ItemList []Item    `json:"itemList"`
+	Tags     []string  `json:"tags"`
 }
 
 // Comment is a comment posted on a post

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
+	"github.com/lib/pq"
 )
 
 // DAO is the Data Abstraction Object we use to seperate out the database
@@ -54,6 +56,7 @@ func NewDAO(username, password string, host string, port int, database string) (
 	}
 	// Stops us having to add the db tags
 	d.db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
+
 	return d, nil
 }
 
@@ -400,7 +403,6 @@ func (d *DAO) getUserByUsernameAndPassword(username, password string) (User, err
 
 func (d *DAO) createUser(u User) (User, error) {
 	u.UserID = uuid.Must(uuid.NewV4())
-
 	_, err := d.db.NamedExec(
 		`INSERT INTO showcash.user(
 			user_id,
@@ -445,4 +447,117 @@ func (d *DAO) updateUser(u User) (User, error) {
 	)
 
 	return u, err
+}
+
+// replaceSQL replaces the instance occurrence of any string pattern with an increasing $n based sequence
+func replaceSQL(old, searchPattern string) string {
+	tmpCount := strings.Count(old, searchPattern)
+	for m := 1; m <= tmpCount; m++ {
+		old = strings.Replace(old, searchPattern, "$"+strconv.Itoa(m), 1)
+	}
+	return old
+}
+
+// createTags is called every insert... it's a bit dirty
+func (d *DAO) createTags(tags []string) ([]string, error) {
+
+	// Sanitise tags on the way in as people
+	// suck - return a nil so people can think they're amazing
+	tags = cleanTags(tags)
+	if len(tags) == 0 {
+		return tags, nil
+	}
+
+	sqlStr := "INSERT INTO showcash.tag(tag) VALUES "
+	queryParam := []interface{}{}
+	for i := range tags {
+		sqlStr += "(?),"
+		queryParam = append(queryParam, tags[i])
+	}
+
+	//trim the last ,
+	sqlStr = strings.TrimSuffix(sqlStr, ",")
+
+	//Replacing ? with $n for postgres
+	sqlStr = replaceSQL(sqlStr, "?")
+
+	//prepare the statement
+	stmt, err := d.db.Prepare(sqlStr + " ON CONFLICT DO NOTHING")
+
+	//format all queryParam at once
+	_, err = stmt.Exec(queryParam...)
+	return tags, err
+}
+
+func (d *DAO) setPostTags(postID uuid.UUID, tags []string) {
+	// Add batch of tags
+	var err error
+	if tags, err = d.createTags(tags); err != nil {
+		log.Println("addTags().createTags() failed", err)
+		return
+	}
+	// Now hook it up
+	_, err = d.db.Exec(
+		`INSERT INTO showcash.posttag(post_id,tag_id)
+			SELECT $1, t.tag_id FROM showcash.tag AS t
+			WHERE t.tag = ANY($2)
+		ON CONFLICT DO NOTHING`,
+		postID,
+		pq.Array(tags),
+	)
+	if err != nil {
+		log.Println("addTags() Failed", err)
+	}
+}
+
+func (d *DAO) removePostTags(postID uuid.UUID, tags []string) {
+	// remove a batch of tags
+	_, err := d.db.Exec(
+		`DELETE FROM showcash.posttag USING showcash.tag
+			WHERE showcash.posttag.tag_id = showcash.tag.tag_id
+				AND showcash.tag.tag = ANY($1) AND showcash.posttag.post_id = $2`,
+		pq.Array(tags),
+		// USING “ANY” INSTEAD OF “IN” with pq.Array() -- source:
+		// https://www.opsdash.com/blog/postgres-arrays-golang.html
+		postID,
+	)
+	if err != nil {
+		log.Println("removeTags() Failed", err)
+	}
+}
+
+func (d *DAO) getMostPopularTags() []string {
+	var tags []string
+	err := d.db.Select(
+		&tags,
+		`SELECT tag.tag FROM (
+			SELECT t.tag,t.tag_id, COUNT(pt.*) AS pop FROM showcash.posttag AS pt
+			JOIN showcash.tag AS t ON t.tag_id = pt.tag_id
+			GROUP BY t.tag,t.tag_id ORDER BY pop DESC
+		) AS p JOIN showcash.tag AS tag ON p.tag_id=tag.tag_id LIMIT 12`,
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Println("getMostViewedPosts() failed", err)
+	}
+	return tags
+}
+
+func (d *DAO) getPostsByTags(tags []string) []Post {
+	// NOTE: Only get by 1 tag at the moment
+	var posts []Post
+	err := d.db.Select(
+		&posts,
+		`SELECT DISTINCT (p.id),p.imageuri,p.title,p.date, u.username FROM showcash.post AS p
+			JOIN showcash.user AS u ON p.user_id = u.user_id
+			JOIN showcash.posttag AS pt ON pt.post_id = p.id
+			JOIN showcash.tag AS t ON t.tag_id = pt.tag_id
+		WHERE t.tag = ANY($1)
+		ORDER BY p.id,p.date DESC
+		LIMIT 50
+		`, pq.Array(tags),
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Println("getPostsByTags() failed", err)
+	}
+	return posts
 }

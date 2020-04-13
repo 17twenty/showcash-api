@@ -19,22 +19,6 @@ var (
 
 var sc = securecookie.New(hashKey, blockKey)
 
-func isValidHandle(s string) bool {
-	if len(s) < 2 || len(s) > 16 {
-		return false
-	}
-	for _, r := range s {
-		if (r < 'a' || r > 'z') &&
-			(r < 'A' || r > 'Z') &&
-			(r < '0' || r > '9') &&
-			(r != '_') &&
-			(r != '-') {
-			return false
-		}
-	}
-	return true
-}
-
 func (c *Core) apiPostLogin(wr http.ResponseWriter, req *http.Request) {
 	v := struct {
 		Username string `json:"username,omitempty"`
@@ -47,7 +31,7 @@ func (c *Core) apiPostLogin(wr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if !isValidHandle(v.Username) {
+	if !isAlphaNumeric(v.Username) || len(v.Username) > 16 {
 		jsonResponse(wr, "Bad Creds", http.StatusForbidden)
 		return
 	}
@@ -157,7 +141,7 @@ func (c *Core) apiPostSignup(wr http.ResponseWriter, req *http.Request) {
 	}
 
 	// Handle check
-	if !isValidHandle(newUser.Username) || !isAllowed(newUser.RealName) {
+	if !isAlphaNumeric(newUser.Username) || len(newUser.Username) > 16 || !isAllowed(newUser.RealName) {
 		jsonResponse(wr, "Name too short or just rude", http.StatusBadRequest)
 		return
 	}
