@@ -4,7 +4,7 @@ import "strings"
 
 var blacklistEntries []string = []string{
 	"porn",
-	"tran",
+	"trans",
 	"ladyboy",
 	"xxx",
 	"xvideo",
